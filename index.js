@@ -26,6 +26,20 @@ const getIdVideo = (url) => {
     return idVideo.length > 19 ? idVideo.substring(0, idVideo.indexOf("?")) : idVideo;
 };
 
+// **Redirección HTTP para obtener URL completa**
+const getFullUrl = async (shortUrl) => {
+    try {
+        // Hacer una solicitud GET al enlace corto para obtener la URL completa
+        const response = await axios.get(shortUrl, { maxRedirects: 5 });
+        const fullUrl = response.request.res.responseUrl; // URL completa después de la redirección
+
+        return fullUrl;
+    } catch (error) {
+        console.error('Error al obtener la URL completa:', error);
+        return null;
+    }
+};
+
 // **Rutas principales**
 // Obtener información del video de TikTok
 app.post('/get-video-id', async (req, res) => {
@@ -35,7 +49,15 @@ app.post('/get-video-id', async (req, res) => {
         return res.status(400).send({ error: 'URL no proporcionada' });
     }
 
-    const idVideo = getIdVideo(url);
+    // Si la URL es corta, obtener la URL completa primero
+    const fullUrl = await getFullUrl(url);
+
+    if (!fullUrl) {
+        return res.status(400).send({ error: 'No se pudo obtener la URL completa' });
+    }
+
+    // Extraer el ID del video de la URL completa
+    const idVideo = getIdVideo(fullUrl);
     if (!idVideo) {
         return res.status(400).send({ error: 'URL no válida' });
     }
