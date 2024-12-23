@@ -3,6 +3,8 @@ import fetch from 'node-fetch';
 import cors from 'cors';
 import axios from 'axios';
 import instagramGetUrl from 'instagram-url-direct';
+import path from 'path';
+import https from 'https';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -156,36 +158,43 @@ app.post('/get-video-id-instagram', async (req, res) => {
 
 // Descargar un video de Instagram por URL
 app.get('/download-instagram', async (req, res) => {
-    const { url } = req.query;
+    const { url } = req.query; // URL directa del video
 
     if (!url) {
         return res.status(400).send({ error: 'URL no proporcionada' });
     }
 
     try {
-        console.log('Obteniendo datos del enlace de Instagram...');
-        const data = await instagramGetUrl(url);
+        console.log(`📥 Descargando video desde: ${url}`);
 
-        if (!data.url_list || data.url_list.length === 0) {
-            return res.status(404).send({ error: 'No se encontró ningún archivo descargable en la URL proporcionada.' });
-        }
-
-        const fileUrl = data.url_list[0];
-        const fileName = fileUrl.split('?')[0].split('/').pop(); // Extract file name
-
-        const fileResponse = await axios({
-            url: fileUrl,
-            method: 'GET',
-            responseType: 'stream',
-        });
-
+        // Extraer el nombre del archivo
+        const fileName = path.basename(url.split('?')[0]);
         res.setHeader('Content-Type', 'video/mp4');
         res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
-        fileResponse.data.pipe(res);
+
+        // Descargar y transmitir el archivo al cliente
+        https.get(url, (response) => {
+            response.pipe(res);
+
+            response.on('end', () => {
+                console.log('✅ Archivo descargado exitosamente.');
+            });
+
+            response.on('error', (err) => {
+                console.error('❌ Error durante la descarga:', err.message);
+                res.status(500).send({ error: 'Error durante la descarga del video.' });
+            });
+        }).on('error', (err) => {
+            console.error('❌ Error al conectar con la URL:', err.message);
+            res.status(500).send({ error: 'Error al conectar con la URL del video.' });
+        });
     } catch (error) {
-        return res.status(500).send({ error: 'Error al descargar el video de Instagram' });
+        console.error('❌ Se produjo un error:', error.message);
+        res.status(500).send({ error: 'Error al procesar la solicitud.' });
     }
 });
+
+
 
 // **Inicio del servidor**
 app.listen(port, () => {
