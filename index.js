@@ -128,6 +128,7 @@ app.get('/download/:idVideo', async (req, res) => {
     }
 });
 
+
 // Obtener información de Instagram
 app.post('/get-video-id-instagram', async (req, res) => {
     const { url } = req.body;
@@ -146,8 +147,8 @@ app.post('/get-video-id-instagram', async (req, res) => {
 
         const fileUrl = data.url_list[0];
         const fileName = fileUrl.split('?')[0].split('/').pop(); // Extract file name
-
-        return res.send({ videoUrl: fileUrl, videoName: fileName });
+        const thumbnailUrl = data.data.media_details[0].thumbnail;
+        return res.send({ videoUrl: fileUrl, videoName: fileName, thumbnail: thumbnailUrl });
     } catch (error) {
         return res.status(500).send({ error: 'Error al obtener el video de Instagram' });
     }
