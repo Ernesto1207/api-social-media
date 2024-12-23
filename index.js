@@ -2,6 +2,7 @@ import express from 'express';
 import fetch from 'node-fetch';
 import cors from 'cors';
 import axios from 'axios';
+import instagramGetUrl from 'instagram-url-direct';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -12,33 +13,20 @@ app.use(cors());
 
 // Ruta base
 app.get('/', (req, res) => {
-    res.send({ message: '¡Bienvenido a la API de TikTok y más!' });
+    res.send({ message: '¡Bienvenido a la API de TikTok e Instagram!' });
 });
 
 // **Funciones auxiliares**
-// Obtener el ID del video
-const getIdVideo = (url) => {
-    const matching = url.includes("/video/");
-    let idVideo = url.substring(url.indexOf("/video/") + 7, url.indexOf("/video/") + 26);
+// Extraer el ID del video de TikTok
+const getIdVideoTikTok = (url) => {
+    const matching = url.includes('/video/');
+    let idVideo = url.substring(url.indexOf('/video/') + 7, url.indexOf('/video/') + 26);
     if (!matching) {
         return null;
     }
-    return idVideo.length > 19 ? idVideo.substring(0, idVideo.indexOf("?")) : idVideo;
+    return idVideo.length > 19 ? idVideo.substring(0, idVideo.indexOf('?')) : idVideo;
 };
 
-// **Redirección HTTP para obtener URL completa**
-const getFullUrl = async (shortUrl) => {
-    try {
-        // Hacer una solicitud GET al enlace corto para obtener la URL completa
-        const response = await axios.get(shortUrl, { maxRedirects: 5 });
-        const fullUrl = response.request.res.responseUrl; // URL completa después de la redirección
-
-        return fullUrl;
-    } catch (error) {
-        console.error('Error al obtener la URL completa:', error);
-        return null;
-    }
-};
 
 // **Rutas principales**
 // Obtener información del video de TikTok
@@ -49,15 +37,7 @@ app.post('/get-video-id', async (req, res) => {
         return res.status(400).send({ error: 'URL no proporcionada' });
     }
 
-    // Si la URL es corta, obtener la URL completa primero
-    const fullUrl = await getFullUrl(url);
-
-    if (!fullUrl) {
-        return res.status(400).send({ error: 'No se pudo obtener la URL completa' });
-    }
-
-    // Extraer el ID del video de la URL completa
-    const idVideo = getIdVideo(fullUrl);
+    const idVideo = getIdVideoTikTok(url);
     if (!idVideo) {
         return res.status(400).send({ error: 'URL no válida' });
     }
@@ -65,7 +45,7 @@ app.post('/get-video-id', async (req, res) => {
     const API_URL = `https://api22-normal-c-alisg.tiktokv.com/aweme/v1/feed/?aweme_id=${idVideo}&iid=7318518857994389254&device_id=7318517321748022790&channel=googleplay&app_name=musical_ly&version_code=300904&device_platform=android&device_type=ASUS_Z01QD&version=9`;
 
     try {
-        const response = await fetch(API_URL, { method: "OPTIONS" });
+        const response = await fetch(API_URL, { method: 'OPTIONS' });
         const body = await response.text();
         const data = JSON.parse(body);
 
@@ -73,8 +53,8 @@ app.post('/get-video-id', async (req, res) => {
             return res.status(404).send({ error: 'Video no encontrado o eliminado' });
         }
 
-        let videoUrl = data.aweme_list[0].video.play_addr.url_list[0];
-        let thumbnailUrl = data.aweme_list[0].video.cover.url_list[0]; // Miniatura
+        const videoUrl = data.aweme_list[0].video.play_addr.url_list[0];
+        const thumbnailUrl = data.aweme_list[0].video.cover.url_list[0]; // Miniatura
 
         if (!videoUrl) {
             return res.status(500).send({ error: 'Error al obtener la URL del video' });
@@ -86,7 +66,7 @@ app.post('/get-video-id', async (req, res) => {
     }
 });
 
-// Descargar un video por ID
+// Descargar un video de TikTok por ID
 app.get('/download/:idVideo', async (req, res) => {
     const { idVideo } = req.params;
 
@@ -97,7 +77,7 @@ app.get('/download/:idVideo', async (req, res) => {
     const API_URL = `https://api22-normal-c-alisg.tiktokv.com/aweme/v1/feed/?aweme_id=${idVideo}&iid=7318518857994389254&device_id=7318517321748022790&channel=googleplay&app_name=musical_ly&version_code=300904&device_platform=android&device_type=ASUS_Z01QD&version=9`;
 
     try {
-        const response = await fetch(API_URL, { method: "OPTIONS" });
+        const response = await fetch(API_URL, { method: 'OPTIONS' });
         const body = await response.text();
         const data = JSON.parse(body);
 
@@ -105,7 +85,7 @@ app.get('/download/:idVideo', async (req, res) => {
             return res.status(404).send({ error: 'Video no encontrado o eliminado' });
         }
 
-        let videoUrl = data.aweme_list[0].video.play_addr.url_list[0];
+        const videoUrl = data.aweme_list[0].video.play_addr.url_list[0];
 
         if (!videoUrl) {
             return res.status(500).send({ error: 'Error al obtener la URL del video' });
@@ -125,10 +105,62 @@ app.get('/download/:idVideo', async (req, res) => {
     }
 });
 
-// **Rutas adicionales**
-// Ejemplo de ruta estática
-app.get('/saludo', (req, res) => {
-    res.send({ saludo: '¡Hola desde la API mejorada!' });
+// Obtener información de Instagram
+app.post('/get-video-id-instagram', async (req, res) => {
+    const { url } = req.body;
+
+    if (!url) {
+        return res.status(400).send({ error: 'URL no proporcionada' });
+    }
+
+    try {
+        console.log('Obteniendo datos del enlace de Instagram...');
+        const data = await instagramGetUrl(url);
+
+        if (!data.url_list || data.url_list.length === 0) {
+            return res.status(404).send({ error: 'No se encontró ningún archivo descargable en la URL proporcionada.' });
+        }
+
+        const fileUrl = data.url_list[0];
+        const fileName = fileUrl.split('?')[0].split('/').pop(); // Extract file name
+
+        return res.send({ videoUrl: fileUrl, videoName: fileName });
+    } catch (error) {
+        return res.status(500).send({ error: 'Error al obtener el video de Instagram' });
+    }
+});
+
+// Descargar un video de Instagram por URL
+app.get('/download-instagram', async (req, res) => {
+    const { url } = req.query;
+
+    if (!url) {
+        return res.status(400).send({ error: 'URL no proporcionada' });
+    }
+
+    try {
+        console.log('Obteniendo datos del enlace de Instagram...');
+        const data = await instagramGetUrl(url);
+
+        if (!data.url_list || data.url_list.length === 0) {
+            return res.status(404).send({ error: 'No se encontró ningún archivo descargable en la URL proporcionada.' });
+        }
+
+        const fileUrl = data.url_list[0];
+        const fileName = fileUrl.split('?')[0].split('/').pop(); // Extract file name
+
+        const fileResponse = await axios({
+            url: fileUrl,
+            method: 'GET',
+            responseType: 'stream',
+        });
+
+        res.setHeader('Content-Type', 'video/mp4');
+        res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+        fileResponse.data.pipe(res);
+    } catch (error) {
+        return res.status(500).send({ error: 'Error al descargar el video de Instagram' });
+    }
 });
 
 // **Inicio del servidor**
