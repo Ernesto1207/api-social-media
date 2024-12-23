@@ -17,15 +17,30 @@ app.get('/', (req, res) => {
 });
 
 // **Funciones auxiliares**
-// Extraer el ID del video de TikTok
-const getIdVideoTikTok = (url) => {
-    const matching = url.includes('/video/');
-    let idVideo = url.substring(url.indexOf('/video/') + 7, url.indexOf('/video/') + 26);
+// Obtener el ID del video
+const getIdVideo = (url) => {
+    const matching = url.includes("/video/");
+    let idVideo = url.substring(url.indexOf("/video/") + 7, url.indexOf("/video/") + 26);
     if (!matching) {
         return null;
     }
-    return idVideo.length > 19 ? idVideo.substring(0, idVideo.indexOf('?')) : idVideo;
+    return idVideo.length > 19 ? idVideo.substring(0, idVideo.indexOf("?")) : idVideo;
 };
+
+// **Redirección HTTP para obtener URL completa**
+const getFullUrl = async (shortUrl) => {
+    try {
+        // Hacer una solicitud GET al enlace corto para obtener la URL completa
+        const response = await axios.get(shortUrl, { maxRedirects: 5 });
+        const fullUrl = response.request.res.responseUrl; // URL completa después de la redirección
+
+        return fullUrl;
+    } catch (error) {
+        console.error('Error al obtener la URL completa:', error);
+        return null;
+    }
+};
+
 
 
 // **Rutas principales**
@@ -37,7 +52,15 @@ app.post('/get-video-id', async (req, res) => {
         return res.status(400).send({ error: 'URL no proporcionada' });
     }
 
-    const idVideo = getIdVideoTikTok(url);
+    // Si la URL es corta, obtener la URL completa primero
+    const fullUrl = await getFullUrl(url);
+
+    if (!fullUrl) {
+        return res.status(400).send({ error: 'No se pudo obtener la URL completa' });
+    }
+
+    // Extraer el ID del video de la URL completa
+    const idVideo = getIdVideo(fullUrl);
     if (!idVideo) {
         return res.status(400).send({ error: 'URL no válida' });
     }
@@ -45,7 +68,7 @@ app.post('/get-video-id', async (req, res) => {
     const API_URL = `https://api22-normal-c-alisg.tiktokv.com/aweme/v1/feed/?aweme_id=${idVideo}&iid=7318518857994389254&device_id=7318517321748022790&channel=googleplay&app_name=musical_ly&version_code=300904&device_platform=android&device_type=ASUS_Z01QD&version=9`;
 
     try {
-        const response = await fetch(API_URL, { method: 'OPTIONS' });
+        const response = await fetch(API_URL, { method: "OPTIONS" });
         const body = await response.text();
         const data = JSON.parse(body);
 
@@ -53,8 +76,8 @@ app.post('/get-video-id', async (req, res) => {
             return res.status(404).send({ error: 'Video no encontrado o eliminado' });
         }
 
-        const videoUrl = data.aweme_list[0].video.play_addr.url_list[0];
-        const thumbnailUrl = data.aweme_list[0].video.cover.url_list[0]; // Miniatura
+        let videoUrl = data.aweme_list[0].video.play_addr.url_list[0];
+        let thumbnailUrl = data.aweme_list[0].video.cover.url_list[0]; // Miniatura
 
         if (!videoUrl) {
             return res.status(500).send({ error: 'Error al obtener la URL del video' });
@@ -66,7 +89,7 @@ app.post('/get-video-id', async (req, res) => {
     }
 });
 
-// Descargar un video de TikTok por ID
+// Descargar un video por ID
 app.get('/download/:idVideo', async (req, res) => {
     const { idVideo } = req.params;
 
@@ -77,7 +100,7 @@ app.get('/download/:idVideo', async (req, res) => {
     const API_URL = `https://api22-normal-c-alisg.tiktokv.com/aweme/v1/feed/?aweme_id=${idVideo}&iid=7318518857994389254&device_id=7318517321748022790&channel=googleplay&app_name=musical_ly&version_code=300904&device_platform=android&device_type=ASUS_Z01QD&version=9`;
 
     try {
-        const response = await fetch(API_URL, { method: 'OPTIONS' });
+        const response = await fetch(API_URL, { method: "OPTIONS" });
         const body = await response.text();
         const data = JSON.parse(body);
 
@@ -85,7 +108,7 @@ app.get('/download/:idVideo', async (req, res) => {
             return res.status(404).send({ error: 'Video no encontrado o eliminado' });
         }
 
-        const videoUrl = data.aweme_list[0].video.play_addr.url_list[0];
+        let videoUrl = data.aweme_list[0].video.play_addr.url_list[0];
 
         if (!videoUrl) {
             return res.status(500).send({ error: 'Error al obtener la URL del video' });
